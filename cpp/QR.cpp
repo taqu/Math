@@ -8,10 +8,10 @@
 #include <stdio.h>
 #include "Vector.h"
 #include "Matrix.h"
-#include "Tridiagonalize.h"
 
 namespace lmath
 {
+#if 0
 namespace
 {
     element_type calcEigenValue22(element_type a00, element_type a01, element_type a10, element_type a11)
@@ -67,6 +67,7 @@ namespace
     }
 }
 
+
     void qr_algorithm(Matrix& m, element_type epsilon)
     {
         tridiagonalize(m);
@@ -106,6 +107,41 @@ namespace
             }
             for(s32 i=0; i<currentSize; ++i){
                 m(i,i) += u;
+            }
+        }
+    }
+
+    void qr_decomp(MatrixView& m)
+    {
+        for(s32 i=0; i<m.rows(); ++i){
+            VectorView v = m.getRow(i);
+            element_type u = lmath::sqrt(innerproduct(m.cols()-i, &v[i], &v[i]));
+            if(v[i]<0.0){
+                u = -u;
+            }
+            v[i] += u;
+            element_type t = 1.0/(v[i]*u);
+            for(s32 j=i+1; j<m.rows(); ++j){
+                VectorView w = m.getRow(j);
+                element_type s = t * innerproduct(m.cols()-i, &v[i], &w[i]);
+                for(s32 k=i; k<m.cols(); ++k){
+                    w[k] -= s*v[k];
+                }
+            }
+            v[i] = -u;
+        }
+    }
+
+    void xtoq(MatrixView& q, const MatrixView& x)
+    {
+        for(s32 i=0; i<x.rows(); ++i){
+            for(s32 j=0; j<x.cols(); ++j){
+                q(i,j) /= x(i,i);
+            }
+            for(s32 j=i+1; j<x.rows(); ++j){
+                for(s32 k=0; k<x.cols(); ++k){
+                    q(j,k) -= x(j,i) * q(i,k);
+                }
             }
         }
     }
@@ -196,4 +232,5 @@ namespace
         }
         return 0;
     }
+#endif
 }

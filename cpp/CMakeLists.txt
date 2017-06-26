@@ -12,7 +12,7 @@ set(CMAKE_CONFIGURATION_TYPES "Debug" "Release")
 
 include_directories(AFTER ${CMAKE_CURRENT_SOURCE_DIR})
 
-set(FILES "main.cpp;SVD.cpp;SVD.h;QR.cpp;QR.h;Tridiagonalize.cpp;Tridiagonalize.h;Householder.cpp;Householder.h;Matrix.cpp;Matrix.h;Vector.cpp;Vector.h;lmath.h")
+set(FILES "main.cpp;SVD.cpp;SVD.h;QR.cpp;QR.h;Householder.cpp;Householder.h;Matrix.cpp;Matrix.h;Vector.cpp;Vector.h;lmath.h")
 
 add_executable(${ProjectName} ${FILES})
 

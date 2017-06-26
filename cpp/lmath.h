@@ -28,9 +28,11 @@ namespace lmath
 #define LDELETE(ptr) delete (ptr); (ptr)=NULL
 #define LDELETE_ARRAY(ptr) delete[] (ptr); (ptr)=NULL
 
-#define LMATH_EPSILON (1.0e-6f)
-#define LMATH_TRUNCATE_EPSILON (1.0e-6f)
-
+#if 1
+    typedef f64 element_type;
+#define LMATH_EPSILON (1.0e-15)
+#define LMATH_TRUNCATE_EPSILON (1.0e-15)
+#endif
     union UnionU32F32
     {
         u32 u32_;
@@ -42,6 +44,19 @@ namespace lmath
         u64 u64_;
         f64 f64_;
     };
+
+    template<class T>
+    inline T minimum(T x0, T x1)
+    {
+        return (x0<x1)? x0 : x1;
+    }
+
+    template<class T>
+    inline T maximum(T x0, T x1)
+    {
+        return (x0<x1)? x1 : x0;
+    }
+
 
     template<class T>
     inline T absolute(T x)
@@ -79,8 +94,6 @@ namespace lmath
         u.u64_ &= 0x7FFFFFFFFFFFFFFFU;
         return u.f64_;
     }
-
-    typedef f32 element_type;
 
     inline f32 sqrt(f32 x)
     {

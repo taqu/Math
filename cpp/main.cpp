@@ -1,231 +1,340 @@
 #include "Vector.h"
 #include "Matrix.h"
 #include "Householder.h"
-#include "Tridiagonalize.h"
 #include "QR.h"
 #include "SVD.h"
 #include <stdio.h>
 #include <random>
+#include <iostream>
+
+//#define USE_EIGEN
+#ifdef USE_EIGEN
+#include "../../eigen/Eigen/Householder"
+#include "../../eigen/Eigen/QR"
+#include "../../eigen/Eigen/SVD"
+
+
+void copy(lmath::MatrixView& dst, Eigen::MatrixXd& src)
+{
+    for(lmath::s32 i=0; i<dst.rows(); ++i){
+        for(lmath::s32 j=0; j<dst.cols(); ++j){
+            dst(i,j) = src(i,j);
+        }
+    }
+}
+void transpose(lmath::MatrixView& dst, Eigen::MatrixXd& src)
+{
+    for(lmath::s32 i=0; i<dst.rows(); ++i){
+        for(lmath::s32 j=0; j<dst.cols(); ++j){
+            dst(j,i) = src(i,j);
+        }
+    }
+}
+#endif
+
+void getRandom(lmath::MatrixView& m, std::mt19937& r)
+{
+    std::uniform_real_distribution<double> dist(0,10.0);
+    for(int i=0; i<m.rows(); ++i){
+        for(int j=0; j<m.cols(); ++j){
+            m(i,j) = dist(r);
+        }
+    }
+}
+
+void getMSE(lmath::f64& mse, lmath::f64& minError, lmath::f64& maxError, lmath::MatrixView& m0, lmath::MatrixView& m1)
+{
+    minError = std::numeric_limits<lmath::f64>::max();
+    maxError = 0.0;
+
+    lmath::f64 t=0.0;
+    for(int i=0; i<m0.rows(); ++i){
+        for(int j=0; j<m0.cols(); ++j){
+            lmath::f64 s = m0(i,j)-m1(i,j);
+            t += s*s;
+            s = lmath::absolute(s);
+            if(s<minError){
+                minError = s;
+            }
+            if(maxError<s){
+                maxError = s;
+            }
+        }
+    }
+    mse = t/(m0.rows()*m0.cols());
+}
+
+bool equal(lmath::MatrixView& m0, lmath::MatrixView& m1, lmath::f64 epsilon)
+{
+    for(int i=0; i<m0.rows(); ++i){
+        for(int j=0; j<m0.cols(); ++j){
+            if(epsilon<lmath::absolute(m0(i,j)-m1(i,j))){
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool checkBidiagonality(lmath::MatrixView& m, lmath::f64 epsilon)
+{
+    for(int j=0; j<m.cols()-1; ++j){
+        for(int i=j+1; i<m.rows(); ++i){
+            lmath::f64 t = lmath::absolute(m(i,j));
+            if(epsilon<t){
+                return false;
+            }
+        }
+    }
+
+    for(int j=2; j<m.cols(); ++j){
+        int r = j-1;
+        if(m.rows()<r){
+            r = m.rows();
+        }
+        for(int i=0; i<r; ++i){
+            lmath::f64 t = lmath::absolute(m(i,j));
+            if(epsilon<t){
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 int main(int argc, char** argv)
 {
-    lmath::Vector v(3);
-    v[0] = 1.0f; v[1] = 1.0f; v[2] = 1.0f;
+    std::random_device dev;
+    std::mt19937 random(dev());
 
-    lmath::f32 x0 = lmath::householder(v);
+    {//Householder Transformation
+        printf("Householder Transformation\n");
+        printf("----------------------------------------\n");
+        lmath::f64 b[10] = {10,9,8,7,6,5,4,3,2,1};
+        lmath::f64 mbuffer0[10*10];
+        lmath::f64 mbuffer1[10*10];
+        lmath::f64 vbuffer0[10];
+        lmath::f64 vbuffer1[10];
 
-    printf("%f 0 0\n", x0);
-    printf("\n");
+        lmath::VectorView b0(10, b);
+        lmath::MatrixView m0(10,10,mbuffer0);
+        lmath::MatrixView m1(10,10,mbuffer1);
+        lmath::VectorView v0(10, vbuffer0);
+        lmath::VectorView v1(10, vbuffer1);
 
-    {
-        lmath::Matrix original(4, 4);
-
-        original(0, 0) = 3;
-        original(1, 0) = 2;
-        original(2, 0) = 4;
-        original(3, 0) = 1;
-
-        original(0, 1) = 2;
-        original(1, 1) = 2;
-        original(2, 1) = 4;
-        original(3, 1) = 5;
-
-        original(0, 2) = 4;
-        original(1, 2) = 4;
-        original(2, 2) = 1;
-        original(3, 2) = 3;
-
-        original(0, 3) = 1;
-        original(1, 3) = 5;
-        original(2, 3) = 3;
-        original(3, 3) = 2;
-
-        lmath::print(original);
-        printf("\n");
-        lmath::tridiagonalize(original);
-        lmath::print(original);
-        printf("\n");
-
+        v0 = b0;
+        lmath::householder_matrix(m0, &b0[0], 5, b0.size());
+        lmath::print(m0);
+        lmath::mul(m1, m0, m0);
+        lmath::print(m1);
+        lmath::mul(v1, m0, v0);
+        lmath::print(v1);
     }
 
-    {
-        lmath::Matrix original(4, 4);
-        lmath::Vector d(4);
-        lmath::Vector e(4);
-
-        original(0, 0) = 3;
-        original(1, 0) = 2;
-        original(2, 0) = 4;
-        original(3, 0) = 1;
-
-        original(0, 1) = 2;
-        original(1, 1) = 2;
-        original(2, 1) = 4;
-        original(3, 1) = 5;
-
-        original(0, 2) = 4;
-        original(1, 2) = 4;
-        original(2, 2) = 1;
-        original(3, 2) = 3;
-
-        original(0, 3) = 1;
-        original(1, 3) = 5;
-        original(2, 3) = 3;
-        original(3, 3) = 2;
-
-        lmath::print(original);
-        printf("\n");
-        lmath::MatrixView mview(original);
-        lmath::VectorView dview(d);
-        lmath::VectorView eview(e);
-
-        lmath::tridiagonalize(4, mview, &dview[0], &eview[0]);
-        lmath::print(dview);
-        printf("\n");
-        lmath::print(eview);
-        printf("\n");
-        lmath::print(mview);
-        printf("\n");
+    {//Householder Transformation
+        printf("----------------------------------------\n");
+        lmath::f64 mbuffer0[4*4] = {4,1,-2,2, 1,2,0,1, -2,0,3,-2, 2,1,-2,-1};
+        lmath::f64 mbuffer1[4*4];
+        lmath::f64 mbuffer2[4*4];
+        lmath::f64 vbuffer0[4];
+        lmath::MatrixView m0(4,4,mbuffer0);
+        lmath::MatrixView m1(4,4,mbuffer1);
+        lmath::MatrixView m2(4,4,mbuffer2);
+        lmath::VectorView r(4, vbuffer0);
+        r.copy(m0.getRow(0));
+        lmath::householder_matrix(m1, r, 1);
+        m0 = lmath::mul(m2, m1, m0);
+        m0 = lmath::mul(m2, m0, m1);
+        printf("H\n");
+        lmath::print(m1);
+        printf("M\n");
+        lmath::print(m0);
     }
 
-    {
-        lmath::Matrix m(3, 3);
-        m(0,0) = 0.0f;
-        m(1,0) = 2.0f;
-        m(2,0) = 2.0f;
+    {//Bidiagonalization
+        printf("Bidiagonalization\n");
+        printf("----------------------------------------\n");
+        lmath::f64 mbuffer0[4*4];
+        lmath::f64 mbuffer1[4*4];
+        lmath::f64 mbuffer2[4*4];
+        lmath::f64 mbuffer3[4*4] = {1,3,2,1, 5,6,4,1, 7,8,9,1, 10,11,12,1};
+        lmath::f64 mbuffer4[4*4];
 
-        m(0,1) = 2.0f;
-        m(1,1) = 1.0f;
-        m(2,1) = 0.0f;
+        lmath::MatrixView U(4, 4, mbuffer0);
+        lmath::MatrixView B(4, 4, mbuffer1);
+        lmath::MatrixView V(4, 4, mbuffer2);
+        lmath::MatrixView A(4, 4, mbuffer3);
+        lmath::MatrixView T(4, 4, mbuffer4);
 
-        m(0,2) = 2.0f;
-        m(1,2) = 0.0f;
-        m(2,2) = -1.0f;
+        lmath::bidiagonalization(U,B,V,A);
 
-        lmath::print(m);
-        printf("\n");
-        lmath::qr_algorithm(m);
-        lmath::print(m);
-        printf("\n");
+        std::cout << "U:\n";
+        lmath::print(U);
+        std::cout << "B:\n";
+        lmath::print(B);
+        std::cout << "V^T:\n";
+        lmath::print(V);
+        std::cout << "A:\n";
+        lmath::print(A);
+        A = lmath::mul(T, U, B);
+        A = lmath::mul(T, A, V);
+        std::cout << "U*B*V:\n";
+        lmath::print(A);
     }
-
     {
-        lmath::Matrix o(3, 3);
-        lmath::Matrix m(3, 3);
-        lmath::Vector d(3);
-        lmath::Vector e(3);
-        o(0,0) = m(0,0) = 0.0f;
-        o(1,0) = m(1,0) = 2.0f;
-        o(2,0) = m(2,0) = 2.0f;
+        printf("----------------------------------------\n");
+        lmath::f64 mbuffer0[4*4];
+        lmath::f64 mbuffer1[4*3];
+        lmath::f64 mbuffer2[3*3];
+        lmath::f64 mbuffer3[4*3] = {1,3,2,5,6,4,7,8,9,10,11,12};
+        lmath::f64 mbuffer4[4*3];
 
-        o(0,1) = m(0,1) = 2.0f;
-        o(1,1) = m(1,1) = 1.0f;
-        o(2,1) = m(2,1) = 0.0f;
+        lmath::MatrixView U(4, 4, mbuffer0);
+        lmath::MatrixView B(4, 3, mbuffer1);
+        lmath::MatrixView V(3, 3, mbuffer2);
+        lmath::MatrixView A(4, 3, mbuffer3);
+        lmath::MatrixView T(4, 3, mbuffer4);
 
-        o(0,2) = m(0,2) = 2.0f;
-        o(1,2) = m(1,2) = 0.0f;
-        o(2,2) = m(2,2) = -1.0f;
+        lmath::bidiagonalization(U,B,V,A);
 
-        lmath::MatrixView mview(m);
-        lmath::VectorView dview(d);
-        lmath::VectorView eview(e);
-
-        lmath::print(mview);
-        printf("\n");
-        lmath::eigen(mview.cols(), mview, dview, eview);
-        lmath::print(mview);
-        printf("\n");
-        lmath::print(dview);
-        printf("\n");
-        lmath::print(eview);
-        printf("\n");
-
-        lmath::element_type x0,x1,x2;
-        x0 = mview(0,0)*o(0,0) + mview(1,0)*o(0,1) + mview(2,0)*o(0,2);
-        x1 = mview(0,0)*o(1,0) + mview(1,0)*o(1,1) + mview(2,0)*o(1,2);
-        x2 = mview(0,0)*o(2,0) + mview(1,0)*o(2,1) + mview(2,0)*o(2,2);
-        printf("%f, %f, %f\n\n", x0, x1, x2);
-
-        x0 = mview(0,1)*o(0,0) + mview(1,1)*o(0,1) + mview(2,1)*o(0,2);
-        x1 = mview(0,1)*o(1,0) + mview(1,1)*o(1,1) + mview(2,1)*o(1,2);
-        x2 = mview(0,1)*o(2,0) + mview(1,1)*o(2,1) + mview(2,1)*o(2,2);
-        printf("%f, %f, %f\n\n", x0, x1, x2);
-
-        x0 = mview(0,2)*o(0,0) + mview(1,2)*o(0,1) + mview(2,2)*o(0,2);
-        x1 = mview(0,2)*o(1,0) + mview(1,2)*o(1,1) + mview(2,2)*o(1,2);
-        x2 = mview(0,2)*o(2,0) + mview(1,2)*o(2,1) + mview(2,2)*o(2,2);
-        printf("%f, %f, %f\n\n", x0, x1, x2);
+        std::cout << "U:\n";
+        lmath::print(U);
+        std::cout << "B:\n";
+        lmath::print(B);
+        std::cout << "V^T:\n";
+        lmath::print(V);
+        std::cout << "A:\n";
+        lmath::print(A);
+        A = lmath::mul(T, U, B);
+        A = lmath::mul(T, A, V);
+        std::cout << "U*B*V:\n";
+        lmath::print(A);
     }
-
     {
-        lmath::Matrix tmp_m(3, 4);
-        tmp_m(0, 0) = 0.411303; tmp_m(1, 0) = 0.409863; tmp_m(2, 0) = 0.278012;
-        tmp_m(0, 1) = 0.246353; tmp_m(1, 1) = 0.098114; tmp_m(2, 1) = 0.907056;
-        tmp_m(0, 2) = 0.569562; tmp_m(1, 2) = 0.813442; tmp_m(2, 2) = 0.163729;
-        tmp_m(0, 3) = 0.757962; tmp_m(1, 3) = 0.873716; tmp_m(2, 3) = 0.260235;
-        lmath::MatrixView m(tmp_m);
+        printf("----------------------------------------\n");
+        lmath::f64 mbuffer0[3*3];
+        lmath::f64 mbuffer1[3*4];
+        lmath::f64 mbuffer2[4*4];
+        lmath::f64 mbuffer3[3*4] = {1,3,2,5,6,4,7,8,9,10,11,12};
+        lmath::f64 mbuffer4[3*4];
 
-        lmath::Matrix tmp_u(4, 4);
-        lmath::Matrix tmp_vt(3, 3);
-        lmath::Vector tmp_sigma(4);
+        lmath::MatrixView U(3, 3, mbuffer0);
+        lmath::MatrixView B(3, 4, mbuffer1);
+        lmath::MatrixView V(4, 4, mbuffer2);
+        lmath::MatrixView A(3, 4, mbuffer3);
+        lmath::MatrixView T(3, 4, mbuffer4);
 
-        lmath::MatrixView u(tmp_u);
-        lmath::MatrixView vt(tmp_vt);
-        lmath::VectorView sigma(tmp_sigma);
-        lmath::svd(u, sigma, vt, m);
+        lmath::bidiagonalization(U,B,V,A);
 
-        printf("U\n");
-        print(u);
-        printf("\n");
-
-        printf("Vt\n");
-        print(vt);
-        printf("\n");
-
-        printf("sigma\n");
-        print(sigma);
-        printf("\n");
+        std::cout << "U:\n";
+        lmath::print(U);
+        std::cout << "B:\n";
+        lmath::print(B);
+        std::cout << "V^T:\n";
+        lmath::print(V);
+        std::cout << "A:\n";
+        lmath::print(A);
+        A = lmath::mul(T, U, B);
+        A = lmath::mul(T, A, V);
+        std::cout << "U*B*V:\n";
+        lmath::print(A);
     }
-
     {
-        static const lmath::s32 NumSamples = 16;
-        std::random_device device;
-        std::mt19937 random(device());
-        std::uniform_real_distribution<lmath::f32> distX(0.0f, 100.0f);
-        std::uniform_real_distribution<lmath::f32> distA(1.0f, 10.0f);
-        std::uniform_real_distribution<lmath::f32> distError(-0.1f, 0.1f);
+        printf("----------------------------------------\n");
+        const int Rows = 50;
+        const int Cols = 50;
+        lmath::f64 mbuffer0[Rows*Rows];
+        lmath::f64 mbuffer1[Rows*Cols];
+        lmath::f64 mbuffer2[Cols*Cols];
+        lmath::f64 mbuffer3[Rows*Cols];
+        lmath::f64 mbuffer4[Rows*Cols];
 
-        lmath::f32 a = distA(random);
-        lmath::f32 b = distA(random);
-        lmath::f32 x[NumSamples];
-        lmath::f32 y[NumSamples];
-        for(lmath::s32 i=0; i<NumSamples; ++i){
-            x[i] = distX(random);
-            y[i] = a*x[i] + b + distError(random);
+        lmath::MatrixView U(Rows, Rows, mbuffer0);
+        lmath::MatrixView B(Rows, Cols, mbuffer1);
+        lmath::MatrixView V(Cols, Cols, mbuffer2);
+        lmath::MatrixView A(Rows, Cols, mbuffer3);
+        lmath::MatrixView T(Rows, Cols, mbuffer4);
+
+        for(int i = 0; i<2; ++i){
+            getRandom(A, random);
+            lmath::bidiagonalization(U, B, V, A);
+            bool c = checkBidiagonality(B, 1.0e-13);
+            B = lmath::mul(T, U, B);
+            B = lmath::mul(T, B, V);
+            std::cout << "[" << i << "] bidiagonal B " << c << "\n";
+
+            if(!equal(A,B,std::numeric_limits<lmath::f64>::epsilon())){
+                std::cout << "Error:\n";
+                lmath::f64 mse, minError, maxError;
+                getMSE(mse, minError, maxError, A,B);
+                std::cout << "  mean squared error: " << mse << ", min: " << minError << ", max: " << maxError << std::endl;
+            }
         }
+    }
 
-        lmath::SVD svd(2, NumSamples);
-        lmath::MatrixView& ma = svd.a();
-        lmath::VectorView& vb = svd.b();
-        for(lmath::s32 i=0; i<NumSamples; ++i){
-            ma(0,i) = x[i];
-            ma(1,i) = 1.0;
-            vb[i] = y[i];
-        }
-        svd.solve();
+    {//Givens Rotation
+        printf("Givens Rotation\n");
+        printf("----------------------------------------\n");
+        lmath::f64 f = 1.0;
+        lmath::f64 g = 0.0;
+        lmath::f64 c,s,r;
+        lmath::rotGivens(c,s,r,f,g);
+        printf("[f,g] = [%g, %g]\n [c,s,r] = [%g, %g, %g]\n", f, g, c, s, r);
+        f = 1.0;
+        g = 2.0;
+        lmath::rotGivens(c,s,r,f,g);
+        printf("[f,g] = [%g, %g]\n [c,s,r] = [%g, %g, %g]\n", f, g, c, s, r);
+        lmath::f64 r0 = c*f+s*g;
+        lmath::f64 r1 = -s*f+c*g;
+        printf("[c s;-s c]*[f;g] = [r;0] : [%g;%g] = [%g;0]\n", r0, r1, r);
+    }
 
-        printf("y=%f x + %f\n\n", a, b);
-        printf("a,b = ");
-        print(svd.x());
-        printf("\n");
-        lmath::VectorView& vx = svd.x();
-        lmath::element_type error = 0.0;
-        for(lmath::s32 i=0; i<NumSamples; ++i){
-            lmath::element_type e = vx[0]*x[i] + vx[1] - y[i];
-            error += e*e;
-        }
-        printf("error = %f\n", error);
+    {//msweep
+        printf("msweep,vsweep\n");
+        printf("----------------------------------------\n");
+        lmath::f64 bbuffer[10*10] =
+        {
+            1, 11,  0,  0,  0,  0,  0,  0,  0,  0,
+            0,  2, 12,  0,  0,  0,  0,  0,  0,  0,
+            0,  0,  3, 13,  0,  0,  0,  0,  0,  0,
+            0,  0,  0,  4, 14,  0,  0,  0,  0,  0,
+            0,  0,  0,  0,  5, 15,  0,  0,  0,  0,
+            0,  0,  0,  0,  0,  6, 16,  0,  0,  0,
+            0,  0,  0,  0,  0,  0,  7, 17,  0,  0,
+            0,  0,  0,  0,  0,  0,  0,  8, 18,  0,
+            0,  0,  0,  0,  0,  0,  0,  0,  9, 19,
+            0,  0,  0,  0,  0,  0,  0,  0,  0, 10,
+        };
+        lmath::f64 dbuffer[10] = {1,2,3,4,5,6,7,8,9,10};
+        lmath::f64 ebuffer[9] = {11,12,13,14,15,16,17,18,19};
+        lmath::MatrixView B(10, 10, bbuffer);
+        lmath::VectorView d(10, dbuffer);
+        lmath::VectorView e(9, ebuffer);
+        lmath::msweep(B);
+        printf("B:\n");
+        lmath::print(B);
 
+        lmath::vsweep(d,e);
+        printf("d:\n");
+        lmath::print(d);
+        printf("e:\n");
+        lmath::print(e);
+    }
+    {//Singular Value Decomposition
+        printf("Singular Value Decomposition\n");
+        printf("----------------------------------------\n");
+        lmath::f64 dbuffer[10] = {1,2,3,4,5,6,7,8,9,10};
+        lmath::f64 ebuffer[9] = {11,12,13,14,15,16,17,18,19};
+        lmath::VectorView d(10, dbuffer);
+        lmath::VectorView e(9, ebuffer);
+
+        lmath::s32 iterations=0;
+        bool result = lmath::svd(d,e,iterations);
+        printf("svd result: %d, %d\n", result, iterations);
+        printf("d:\n");
+        lmath::print(d);
+        printf("e:\n");
+        lmath::print(e);
     }
     return 0;
 }
