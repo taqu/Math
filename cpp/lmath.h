@@ -31,7 +31,6 @@ namespace lmath
 #if 1
     typedef f64 element_type;
 #define LMATH_EPSILON (1.0e-15)
-#define LMATH_TRUNCATE_EPSILON (1.0e-15)
 #endif
     union UnionU32F32
     {

@@ -11,6 +11,34 @@
 
 namespace lmath
 {
+    DiagonalVector::DiagonalVector()
+        :rows_(0)
+        ,cols_(0)
+        ,x_(NULL)
+    {}
+
+    DiagonalVector::DiagonalVector(s32 rows, s32 cols, element_type* x)
+        :rows_(rows)
+        ,cols_(cols)
+        ,x_(x)
+    {}
+
+    DiagonalVector::~DiagonalVector()
+    {}
+
+    element_type DiagonalVector::operator[](s32 index) const
+    {
+        LASSERT(0<=index && index<rows_);
+        return x_[cols_*index + index];
+    }
+
+    element_type& DiagonalVector::operator[](s32 index)
+    {
+        LASSERT(0<=index && index<rows_);
+        return x_[cols_*index + index];
+    }
+
+
     void bidiagonalization(MatrixView& U, MatrixView& B, MatrixView& V, MatrixView& A)
     {
         LASSERT(B.rows() == A.rows());
@@ -83,6 +111,25 @@ namespace lmath
         }
     }
 
+    void rotGivens(element_type& c, element_type& s, element_type f, element_type g)
+    {
+        element_type af = lmath::absolute(f);
+        if(af<LMATH_EPSILON){
+            c = 0.0;
+            s = 1.0;
+        }else if(lmath::absolute(g)<af){
+            element_type t = g/f;
+            element_type t1 = lmath::sqrt(1.0+t*t);
+            c = 1.0/t1;
+            s = t*c;
+        }else{
+            element_type t = f/g;
+            element_type t1 = lmath::sqrt(1.0+t*t);
+            s = 1.0/t1;
+            c = t*s;
+        }
+    }
+
     void msweep(MatrixView& B)
     {
         LASSERT(B.rows() == B.cols());
@@ -120,6 +167,89 @@ namespace lmath
         LDELETE_ARRAY(qbuffer);
     }
 
+    void msweep2(MatrixView& U, MatrixView& B, MatrixView& V)
+    {
+        LASSERT(B.rows() == B.cols());
+        element_type* qbuffer = LNEW element_type[B.rows()*B.cols()];
+        element_type* tbuffer = LNEW element_type[B.rows()*B.cols()];
+        MatrixView Q(B.rows(), B.cols(), qbuffer);
+        MatrixView T(B.rows(), B.cols(), tbuffer);
+
+        Q.identity();
+        s32 r = B.rows();
+        for(s32 i=0; i<r-1; ++i){
+            element_type c,s,r;
+            rotGivens(c,s,r, B(i,i), B(i,i+1));
+            //construct matrix Q and multiply on the right by Q'
+            //this annihilates both B(i-1,i+1) and B(i,i+1)
+            //but makes B(i+1,i) non-zero
+            Q(i,i) = c; Q(i,i+1) = -s;
+            Q(i+1,i) = s; Q(i+1, i+1) = c;
+            B=mul(T,B,Q);
+            Q(i,i+1) = s; Q(i+1,i) = -s;
+            V=mul(T,Q,V);
+            Q(i  ,i) = 1.0; Q(i,   i+1) = 0.0;
+            Q(i+1,i) = 0.0; Q(i+1, i+1) = 1.0;
+
+            rotGivens(c,s,r, B(i,i), B(i+1,i));
+            //construct matrix Q and multiply on the left by Q
+            //this annihilates B(i+1,i), but makes B(i,i+1) and
+            //B(i,i+2) non-zero
+            Q(i,i) = c; Q(i,i+1) = s;
+            Q(i+1,i) = -s; Q(i+1, i+1) = c;
+            B=mul(T,Q,B);
+            Q(i,i+1) = -s; Q(i+1,i) = s;
+            U=mul(T,U,Q);
+            Q(i  ,i) = 1.0; Q(i,   i+1) = 0.0;
+            Q(i+1,i) = 0.0; Q(i+1, i+1) = 1.0;
+        }
+        LDELETE_ARRAY(tbuffer);
+        LDELETE_ARRAY(qbuffer);
+    }
+
+    void msweep2(s32 lower, s32 upper, MatrixView& U, MatrixView& B, MatrixView& V)
+    {
+        s32 size = (B.rows()<B.cols())? B.cols() : B.rows();
+        element_type* qbuffer = LNEW element_type[B.rows()*B.rows() + B.cols()*B.cols()];
+        element_type* tbuffer = LNEW element_type[size*size];
+        MatrixView Q0(B.rows(), B.rows(), qbuffer);
+        MatrixView Q1(B.cols(), B.cols(), qbuffer+B.rows()*B.rows());
+        MatrixView T0(B.rows(), B.cols(), tbuffer);
+        MatrixView T1(B.rows(), B.rows(), tbuffer);
+        MatrixView T2(B.cols(), B.cols(), tbuffer);
+
+        Q0.identity();
+        Q1.identity();
+        for(s32 i=lower; i<upper; ++i){
+            element_type c,s,r;
+            rotGivens(c,s,r, B(i,i), B(i,i+1));
+            //construct matrix Q and multiply on the right by Q'
+            //this annihilates both B(i-1,i+1) and B(i,i+1)
+            //but makes B(i+1,i) non-zero
+            Q1(i,i) = c; Q1(i,i+1) = -s;
+            Q1(i+1,i) = s; Q1(i+1, i+1) = c;
+            B=mul(T0,B,Q1);
+            Q1(i,i+1) = s; Q1(i+1,i) = -s;
+            V=mul(T2,Q1,V);
+            Q1(i  ,i) = 1.0; Q1(i,   i+1) = 0.0;
+            Q1(i+1,i) = 0.0; Q1(i+1, i+1) = 1.0;
+
+            rotGivens(c,s,r, B(i,i), B(i+1,i));
+            //construct matrix Q and multiply on the left by Q
+            //this annihilates B(i+1,i), but makes B(i,i+1) and
+            //B(i,i+2) non-zero
+            Q0(i,i) = c; Q0(i,i+1) = s;
+            Q0(i+1,i) = -s; Q0(i+1, i+1) = c;
+            B=mul(T0,Q0,B);
+            Q0(i,i+1) = -s; Q0(i+1,i) = s;
+            U=mul(T1,U,Q0);
+            Q0(i  ,i) = 1.0; Q0(i,   i+1) = 0.0;
+            Q0(i+1,i) = 0.0; Q0(i+1, i+1) = 1.0;
+        }
+        LDELETE_ARRAY(tbuffer);
+        LDELETE_ARRAY(qbuffer);
+    }
+
     void vsweep(VectorView& d, VectorView& e)
     {
         LASSERT(d.size() ==  (e.size()+1));
@@ -137,7 +267,26 @@ namespace lmath
         d[d.size()-1] = h*cold;
     }
 
-    bool svd(VectorView& d, VectorView& e, s32& iterations, element_type epsilon, s32 maxIterationFactor)
+    void vsweep(s32 lower, s32 upper, VectorView& d, VectorView& e)
+    {
+        LASSERT(d.size() ==  (e.size()+1));
+        LASSERT(upper<=e.size());
+
+        element_type c=1.0, cold=1.0;
+        element_type s, sold, r;
+        for(s32 i=lower; i<upper; ++i){
+            rotGivens(c,s,r,c*d[i],e[i]);
+            if(lower!=i){
+                e[i-1] = r*sold;
+            }
+            rotGivens(cold,sold,d[i], cold*r, d[i+1]*s);
+        }
+        element_type h = c*d[upper];
+        e[upper-1] = h*sold;
+        d[upper] = h*cold;
+    }
+
+    s32 svd(VectorView& d, VectorView& e, element_type epsilon, s32 maxIterationFactor)
     {
         LASSERT(d.size() == (e.size()+1));
         element_type TOL = 100.0*epsilon;
@@ -165,6 +314,7 @@ namespace lmath
         LDELETE_ARRAY(mubuffer);
         LDELETE_ARRAY(lambdabuffer);
 
+        s32 iterations;
         s32 iUpper = d.size()-2;
         s32 iLower = 0;
         for(iterations=0; iterations<maxIteration; ++iterations){
@@ -191,15 +341,129 @@ namespace lmath
 
             if((iUpper == iLower && absolute(e[iUpper])<=threshold) || (iUpper<iLower)){
                 //all done, sort singular values in ascending order
-                return true;
+                return iterations;
             }
 
             //do a sweep
-            VectorView dprime(iUpper-iLower+2, &d[iLower]);
-            VectorView eprime(iUpper-iLower+1, &e[iLower]);
-            vsweep(dprime, eprime);
+            vsweep(iLower, iUpper+1, d, e);
         }
-        return false;
+        return -1;
+    }
+
+    s32 svd(MatrixView& U, MatrixView& A, MatrixView& V, element_type epsilon, s32 maxIterationFactor)
+    {
+        //Bidiagonalize
+        element_type* bbuffer = LNEW element_type[A.rows()*A.cols()];
+
+        MatrixView B(A.rows(), A.cols(), bbuffer);
+        bidiagonalization(U,B,V,A);
+
+        s32 diag = (A.rows()<A.cols())? A.rows() : A.cols();
+        DiagonalVector d(diag, A.cols(), &B(0,0));
+        DiagonalVector e(diag-1, A.cols(), &B(0,1));
+
+        element_type TOL = 100.0*epsilon;
+        s32 maxIteration = maxIterationFactor*d.size()*d.size();
+
+        element_type* lambdabuffer = LNEW element_type[d.size()];
+        element_type* mubuffer = LNEW element_type[d.size()];
+
+        VectorView lambda(diag, lambdabuffer);
+        VectorView mu(diag, mubuffer);
+
+        //The following convergence criterion is discussed by
+        //Demmel and Kahan.  First, estimate the smallest singular value.
+        lambda[d.size()-1] = absolute(d[d.size()-1]);
+        for(s32 i=d.size()-2; 0<=i; --i){
+            lambda[i] = absolute(d[i]) * lambda[i+1]/(lambda[i+1] + absolute(e[i]));
+        }
+
+        mu[0] = absolute(d[0]);
+        for(s32 i=1;i<d.size(); ++i){
+            mu[i] = absolute(d[i]) * mu[i-1]/(mu[i-1]+absolute(e[i-1]));
+        }
+        element_type sigmaLower = minimum(lambda.minimum(), mu.minimum());
+        element_type threshold = maximum(TOL*sigmaLower, maxIteration*std::numeric_limits<element_type>::min());
+        LDELETE_ARRAY(mubuffer);
+        LDELETE_ARRAY(lambdabuffer);
+
+        s32 iterations;
+        s32 iUpper = d.size()-2;
+        s32 iLower = 0;
+        for(iterations=0; iterations<maxIteration; ++iterations){
+            //reduce problem size when some zeros are on the superdiagonal
+
+            //how many zeros are near the bottom right?
+            for(s32 i=iUpper; 0<=i; --i){
+                iUpper=i;
+                if(threshold<absolute(e[i])){
+                    break;
+                }
+            }
+            //how many zeros are near the top left?
+            {
+                s32 j=iUpper;
+                for(s32 i=iLower; i<iUpper; ++i){
+                    if(threshold<absolute(e[i])){
+                        j=i;
+                        break;
+                    }
+                }
+                iLower = j;
+            }
+
+            if((iUpper == iLower && absolute(e[iUpper])<=threshold) || (iUpper<iLower)){
+#if 0
+                //all done, sort singular values in ascending order
+                for(s32 i=0; i<d.size(); ++i){
+                    s32 k=i;
+                    for(s32 j=i+1; j<d.size(); ++j){
+                        if(lmath::absolute(d[j])<lmath::absolute(d[k])){
+                            k=j;
+                        }
+                    }
+                    if(k==i){
+                        continue;
+                    }
+                    lmath::swap(d[k],d[i]);
+                    U.swapCols(i,k);
+                    V.swapRows(i,k);
+                }
+#endif
+                A = B;
+                LDELETE_ARRAY(bbuffer);
+                return iterations;
+            }
+
+            //do a sweep
+            //vsweep(iLower, iUpper+1, d, e);
+            msweep2(iLower, iUpper+1, U, B, V);
+        }
+        LDELETE_ARRAY(bbuffer);
+        return -1;
+    }
+
+    void pseudoInverse(MatrixView& Aplus, MatrixView& U, MatrixView& A, MatrixView& V)
+    {
+        LASSERT(Aplus.rows() == A.cols());
+        LASSERT(Aplus.cols() == A.rows());
+        element_type* tbuffer = LNEW element_type[A.rows()*A.cols()];
+        MatrixView T(Aplus.rows(), Aplus.cols(), tbuffer);
+
+        Aplus.zero();
+        s32 diag = (A.rows()<A.cols())? A.rows() : A.cols();
+        for(s32 i=0; i<diag; ++i){
+             element_type a = A(i,i);
+             if(LMATH_EPSILON<lmath::absolute(a)){
+                 Aplus(i,i) = 1.0/a;
+             }
+        }
+
+        transposeSquare(V);
+        transposeSquare(U);
+        Aplus = mul(T,V,Aplus);
+        Aplus = mul(T,Aplus,U);
+        LDELETE_ARRAY(tbuffer);
     }
 
 #if 0

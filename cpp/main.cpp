@@ -289,7 +289,7 @@ int main(int argc, char** argv)
         printf("[c s;-s c]*[f;g] = [r;0] : [%g;%g] = [%g;0]\n", r0, r1, r);
     }
 
-    {//msweep
+    {//msweep,vsweep
         printf("msweep,vsweep\n");
         printf("----------------------------------------\n");
         lmath::f64 bbuffer[10*10] =
@@ -314,27 +314,174 @@ int main(int argc, char** argv)
         printf("B:\n");
         lmath::print(B);
 
-        lmath::vsweep(d,e);
+        lmath::vsweep(0, e.size(), d,e);
         printf("d:\n");
         lmath::print(d);
         printf("e:\n");
         lmath::print(e);
     }
-    {//Singular Value Decomposition
-        printf("Singular Value Decomposition\n");
+
+    {//msweep2,vsweep2
+        printf("msweep2,vsweep2\n");
         printf("----------------------------------------\n");
+        lmath::f64 bbuffer[10*10] =
+        {
+            1, 11,  0,  0,  0,  0,  0,  0,  0,  0,
+            0,  2, 12,  0,  0,  0,  0,  0,  0,  0,
+            0,  0,  3, 13,  0,  0,  0,  0,  0,  0,
+            0,  0,  0,  4, 14,  0,  0,  0,  0,  0,
+            0,  0,  0,  0,  5, 15,  0,  0,  0,  0,
+            0,  0,  0,  0,  0,  6, 16,  0,  0,  0,
+            0,  0,  0,  0,  0,  0,  7, 17,  0,  0,
+            0,  0,  0,  0,  0,  0,  0,  8, 18,  0,
+            0,  0,  0,  0,  0,  0,  0,  0,  9, 19,
+            0,  0,  0,  0,  0,  0,  0,  0,  0, 10,
+        };
+        lmath::f64 ubuffer[10*10];
+        lmath::f64 vbuffer[10*10];
+        lmath::f64 tbuffer[10*10];
         lmath::f64 dbuffer[10] = {1,2,3,4,5,6,7,8,9,10};
         lmath::f64 ebuffer[9] = {11,12,13,14,15,16,17,18,19};
+        lmath::MatrixView B(10, 10, bbuffer);
+        lmath::MatrixView U(10, 10, ubuffer);
+        lmath::MatrixView V(10, 10, vbuffer);
+        lmath::MatrixView T(10, 10, tbuffer);
         lmath::VectorView d(10, dbuffer);
         lmath::VectorView e(9, ebuffer);
+        U.identity();
+        V.identity();
+        lmath::msweep2(1,9,U,B,V);
+        printf("B:\n");
+        lmath::print(B);
+        printf("U:\n");
+        lmath::print(U);
+        printf("V:\n");
+        lmath::print(V);
+        printf("U*B*V:\n");
+        B=lmath::mul(T,U,B);
+        B=lmath::mul(T,B,V);
+        lmath::print(B);
 
-        lmath::s32 iterations=0;
-        bool result = lmath::svd(d,e,iterations);
-        printf("svd result: %d, %d\n", result, iterations);
+        lmath::vsweep(1,9,d,e);
         printf("d:\n");
         lmath::print(d);
         printf("e:\n");
         lmath::print(e);
+    }
+
+    {//Singular Value Decomposition
+        printf("Singular Value Decomposition\n");
+        printf("----------------------------------------\n");
+
+        lmath::f64 bbuffer[10*10] =
+        {
+            1, 11,  0,  0,  0,  0,  0,  0,  0,  0,
+            0,  2, 12,  0,  0,  0,  0,  0,  0,  0,
+            0,  0,  3, 13,  0,  0,  0,  0,  0,  0,
+            0,  0,  0,  4, 14,  0,  0,  0,  0,  0,
+            0,  0,  0,  0,  5, 15,  0,  0,  0,  0,
+            0,  0,  0,  0,  0,  6, 16,  0,  0,  0,
+            0,  0,  0,  0,  0,  0,  7, 17,  0,  0,
+            0,  0,  0,  0,  0,  0,  0,  8, 18,  0,
+            0,  0,  0,  0,  0,  0,  0,  0,  9, 19,
+            0,  0,  0,  0,  0,  0,  0,  0,  0, 10,
+        };
+        lmath::f64 abuffer[10*10];
+        lmath::f64 apbuffer[10*10];
+        lmath::f64 ubuffer[10*10];
+        lmath::f64 utbuffer[10*10];
+        lmath::f64 vbuffer[10*10];
+        lmath::f64 vtbuffer[10*10];
+        lmath::f64 tbuffer[10*10];
+        lmath::f64 dbuffer[10] = {1,2,3,4,5,6,7,8,9,10};
+        lmath::f64 ebuffer[9] = {11,12,13,14,15,16,17,18,19};
+        lmath::MatrixView B(10, 10, bbuffer);
+        lmath::MatrixView A(10, 10, abuffer);
+        lmath::MatrixView Aplus(10, 10, apbuffer);
+        lmath::MatrixView U(10, 10, ubuffer);
+        lmath::MatrixView Ut(10, 10, utbuffer);
+        lmath::MatrixView V(10, 10, vbuffer);
+        lmath::MatrixView Vt(10, 10, vtbuffer);
+        lmath::MatrixView T(10, 10, tbuffer);
+        lmath::VectorView d(10, dbuffer);
+        lmath::VectorView e(9, ebuffer);
+
+        lmath::s32 iterations=0;
+        iterations = lmath::svd(d,e);
+        printf("svd result: %d\n", iterations);
+        printf("d:\n");
+        lmath::print(d);
+        printf("e:\n");
+        lmath::print(e);
+
+        iterations = lmath::svd(U,B,V);
+        printf("svd result: %d\n", iterations);
+        A = B;
+        U.transpose(Ut);
+        V.transpose(Vt);
+        printf("B:\n");
+        lmath::print(B);
+        printf("U:\n");
+        lmath::print(U);
+        printf("V:\n");
+        lmath::print(V);
+        printf("U*B*V:\n");
+        B=lmath::mul(T,U,B);
+        B=lmath::mul(T,B,V);
+        lmath::print(B);
+
+        lmath::pseudoInverse(Aplus, U, A, V);
+        printf("B+:\n");
+        lmath::print(Aplus);
+
+        printf("U*Ut:\n");
+        Ut = lmath::mul(T, U, Ut);
+        lmath::print(Ut);
+        printf("V*Vt:\n");
+        Vt = lmath::mul(T, V, Vt);
+        lmath::print(Vt);
+    }
+
+     {//Singular Value Decomposition
+        printf("Solve Linear Equation\n");
+        printf("----------------------------------------\n");
+
+        lmath::f64 bbuffer[3*2] =
+        {
+            1,2,
+            4,5,
+            7,8,
+        };
+        lmath::f64 vbbuffer[3] =
+        {
+            3,
+            6,
+            9,
+        };
+
+        lmath::f64 bpbuffer[3*2];
+        lmath::f64 ubuffer[3*3];
+        lmath::f64 vbuffer[2*2];
+        lmath::f64 tbuffer[3*2];
+        lmath::f64 tvbuffer[2];
+        lmath::MatrixView B(3, 2, bbuffer);
+        lmath::MatrixView Bplus(2, 3, bpbuffer);
+        lmath::MatrixView U(3, 3, ubuffer);
+        lmath::MatrixView V(2, 2, vbuffer);
+        lmath::MatrixView T(3, 2, tbuffer);
+        lmath::VectorView b(3,vbbuffer);
+        lmath::VectorView t(2, tvbuffer);
+
+
+        lmath::s32 iterations=0;
+        iterations = lmath::svd(U,B,V);
+        printf("svd result: %d\n", iterations);
+        lmath::pseudoInverse(Bplus, U, B, V);
+        printf("B+:\n");
+        lmath::print(Bplus);
+        lmath::mul(t, Bplus, b);
+        printf("x:\n");
+        lmath::print(t);
     }
     return 0;
 }

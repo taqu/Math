@@ -15,71 +15,6 @@ namespace lmath
 
     //--------------------------------------------------
     //---
-    //--- Vector
-    //---
-    //--------------------------------------------------
-    class Vector
-    {
-    public:
-        typedef lmath::element_type element_type;
-
-        Vector();
-        explicit Vector(s32 n);
-        Vector(const Vector& v);
-        Vector(Vector&& v);
-        ~Vector();
-
-        inline s32 size() const;
-        inline element_type operator[](s32 index) const;
-        inline element_type& operator[](s32 index);
-        inline element_type operator()(s32 index) const;
-        inline element_type& operator()(s32 index);
-
-        Vector& operator=(const Vector& v);
-        Vector& operator=(Vector&& v);
-
-    private:
-        friend class VectorView;
-
-        s32 size_;
-        element_type* x_;
-    };
-
-    inline s32 Vector::size() const
-    {
-        return size_;
-    }
-
-    inline Vector::element_type Vector::operator[](s32 index) const
-    {
-        LASSERT(0<=index && index<size_);
-        return x_[index];
-    }
-
-    inline Vector::element_type& Vector::operator[](s32 index)
-    {
-        LASSERT(0<=index && index<size_);
-        return x_[index];
-    }
-
-    inline Vector::element_type Vector::operator()(s32 index) const
-    {
-        LASSERT(0<=index && index<size_);
-        return x_[index];
-    }
-
-    inline Vector::element_type& Vector::operator()(s32 index)
-    {
-        LASSERT(0<=index && index<size_);
-        return x_[index];
-    }
-
-    element_type dot(const Vector& v0, const Vector& v1);
-    element_type dot(s32 size, const Vector& v0, const Vector& v1);
-    void print(const Vector& v);
-
-    //--------------------------------------------------
-    //---
     //--- VectorView
     //---
     //--------------------------------------------------
@@ -91,7 +26,6 @@ namespace lmath
         VectorView();
         VectorView(s32 n, element_type* x);
         VectorView(VectorView&& v);
-        VectorView(Vector& v);
         ~VectorView();
 
         inline s32 size() const;
